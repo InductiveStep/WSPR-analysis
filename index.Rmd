@@ -43,7 +43,7 @@ dbListTables(db_con)
 
 Yes!
 
-Let's try the example from the WsprDaemon Timescale Databases Notes ([Version 2.0 November 2020](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf)):
+Let's try an example from the WsprDaemon Timescale Databases Notes ([Version 2.0 November 2020](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf)):
 
 ```{r}
 res <- dbSendQuery(db_con, "SELECT * FROM spots ORDER BY wd_time DESC LIMIT 10")
