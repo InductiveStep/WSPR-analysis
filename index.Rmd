@@ -1,0 +1,64 @@
+---
+title: "Grabbing data from the WsprDaemon Timescale Database"
+author: "Andi Fugard (almost@gmail.com, @[inductivestep](https://twitter.com/InductiveStep))"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+## Setup packages
+
+```{r}
+library(RPostgres)
+library(DBI)
+library(tidyverse)
+```
+
+
+## Connect to database
+
+The settings are available [over here](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf).
+
+```{r}
+db_name <- "wsprnet"
+db_host <- "logs2.wsprdaemon.org"  
+db_user <- "wdread"  
+db_password <- "JTWSPR2008"
+db_con <- dbConnect(RPostgres::Postgres(),
+                    dbname = db_name,
+                    host = db_host,
+                    user = db_user,
+                    password = db_password)  
+```
+
+Check if it worked:
+
+```{r}
+dbListTables(db_con) 
+```
+
+Yes!
+
+Let's try the example from the WsprDaemon Timescale Databases Notes ([Version 2.0 November 2020](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf)):
+
+```{r}
+res <- dbSendQuery(db_con, "SELECT * FROM spots ORDER BY wd_time DESC LIMIT 10")
+```
+
+```{r}
+dbFetch(res)
+```
+
+Yes - works.
+
+```{r}
+dbClearResult(res)
+```
+
+
+## More to follow...
+
