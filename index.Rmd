@@ -1,6 +1,6 @@
 ---
 title: "Grabbing data from the WsprDaemon Timescale Database"
-author: "Andi Fugard (almost@gmail.com, @[inductivestep](https://twitter.com/InductiveStep))"
+author: "Andi Fugard M0INF (almost@gmail.com, @[inductivestep](https://twitter.com/InductiveStep))"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 ---
 
@@ -46,7 +46,7 @@ Yes!
 Let's try an example from the WsprDaemon Timescale Databases Notes ([Version 2.0 November 2020](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf)):
 
 ```{r}
-res <- dbSendQuery(db_con, "SELECT * FROM spots ORDER BY wd_time DESC LIMIT 10")
+res <- dbSendQuery(db_con, "SELECT * FROM spots ORDER BY wd_time DESC LIMIT 1")
 ```
 
 ```{r}
@@ -62,29 +62,68 @@ dbClearResult(res)
 
 ## Grab a time range
 
-
 ```{r}
-one_day <- dbSendQuery(db_con, "SELECT * FROM spots WHERE \"CallSign\" = 'M0INF' AND wd_time >= '2021-01-03T00:00:00Z' AND wd_time < '2021-01-04T00:00:00Z';")
+one_day <- dbSendQuery(db_con,
+  "SELECT * FROM spots
+   WHERE \"CallSign\" = 'M0INF'
+         AND wd_time >= '2021-01-03T00:00:00Z'
+         AND wd_time < '2021-01-04T00:00:00Z';")
 ```
-
-Peek:
 
 ```{r}
 the_dat <- dbFetch(one_day)
 dbClearResult(one_day)
 ```
 
-
-
-
-```{r fig.height=3, fig.width=6}
+```{r fig.height=3, fig.width=6, dpi = 300}
 the_dat %>%
   ggplot(aes(wd_time, distance)) +
   geom_point() +
   geom_smooth() +
   labs(x = "Time", y = "Distance (km)",
        title = "WSPR reports of M0INF",
-       subtitle = "3 Jan 2021, 20m band")
+       subtitle = "3 Jan 2021, 20m band") +
+  scale_x_datetime(date_breaks = "2 hour", date_labels = "%H")
 ```
 
+
+```{r}
+one_day_send_receive <- dbSendQuery(db_con,
+  "SELECT * FROM spots
+   WHERE (\"CallSign\" = 'M0INF' OR \"Reporter\" = 'M0INF')
+   AND wd_time >= '2021-01-03T00:00:00Z'
+   AND wd_time <  '2021-01-04T00:00:00Z';")
+```
+
+```{r}
+the_dat_send_rec <- dbFetch(one_day_send_receive)
+dbClearResult(one_day_send_receive)
+```
+
+```{r}
+the_dat_send_rec <- the_dat_send_rec %>%
+  mutate(Direction = ifelse(Reporter == "M0INF",
+                            "Rx by M0INF",
+                            "Tx by M0INF"))
+```
+
+```{r fig.height=3, fig.width=6, dpi = 300}
+the_dat_send_rec %>%
+  ggplot(aes(wd_time, distance, colour = Direction)) +
+  geom_point(alpha = 0.5, size = 1) +
+  stat_smooth(geom="line", alpha = 0.5, size = 0.8) +
+  labs(x = "Time", y = "Distance (km)",
+       title = "WSPR reports",
+       subtitle = "3 Jan 2021, 20m band") +
+  scale_y_continuous(trans = "log10") +
+  scale_x_datetime(date_breaks = "2 hour", date_labels = "%H")
+```
+
+Which of those are over 5000 km?
+
+```{r}
+the_dat_send_rec %>%
+  filter(distance > 5000) %>%
+  select(wd_time, CallSign, Reporter, distance)
+```
 
