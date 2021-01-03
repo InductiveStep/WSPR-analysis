@@ -18,6 +18,9 @@ This short Markdown file shows how to query the [WsprDaemon Timescale Database](
 library(RPostgres)
 library(DBI)
 library(tidyverse)
+library(DT)
+library(knitr)
+dt_options <- list(pageLength=7, scrollX = "400px")
 ```
 
 
@@ -44,14 +47,18 @@ dbListTables(db_con)
 ```
 Yes!
 
-Let's try an example from the WsprDaemon Timescale Databases Notes ([Version 2.0 November 2020](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf)):
+Let's try an example based on SQL from the WsprDaemon Timescale Databases Notes ([Version 2.0 November 2020](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf)):
 
 ```{r}
-res <- dbSendQuery(db_con, "SELECT * FROM spots ORDER BY wd_time DESC LIMIT 1")
+res <- dbSendQuery(db_con,
+  "SELECT * FROM spots
+   ORDER BY wd_time DESC
+   LIMIT 20")
 ```
 
 ```{r}
-dbFetch(res)
+dbFetch(res) %>%
+  datatable(options = dt_options)
 ```
 
 Yes -- works.
@@ -78,11 +85,13 @@ This fetches the data to a data frame:
 ```{r}
 the_dat <- dbFetch(one_day)
 dbClearResult(one_day)
+the_dat %>%
+  datatable(options = dt_options)
 ```
 
 Now plot:
 
-```{r fig.height=5, fig.width=6, dpi = 300}
+```{r fig.height=3, fig.width=4, dpi = 300}
 the_dat %>%
   ggplot(aes(wd_time, distance)) +
   geom_point() +
@@ -121,7 +130,9 @@ The graph is a bit crowded so the y-axis is on the $\log_{10}$ scale.
 the_dat_send_rec %>%
   ggplot(aes(wd_time, distance, colour = Direction)) +
   geom_point(alpha = 0.5, size = 1) +
-  stat_smooth(geom="line", alpha = 0.5, size = 0.8) +
+  stat_smooth(geom="line",
+              alpha = 0.5, size = 0.8,
+              span = 0.4, method.args = list(degree=2)) +
   labs(x = "Time", y = "Distance (km)",
        title = "WSPR reports",
        subtitle = "3 Jan 2021, 20m band") +
@@ -134,6 +145,19 @@ Which of those reports are over 5000 km?
 ```{r}
 the_dat_send_rec %>%
   filter(distance > 5000) %>%
-  select(wd_time, CallSign, Reporter, distance)
+  group_by(CallSign, Reporter, distance) %>%
+  summarise(Spots = n()) %>%
+  arrange(desc(Spots)) %>%
+  kable()
 ```
 
+And which are under 100 km?
+
+```{r}
+the_dat_send_rec %>%
+  filter(distance < 100) %>%
+  group_by(CallSign, Reporter, distance) %>%
+  summarise(Spots = n()) %>%
+  arrange(desc(Spots)) %>%
+  kable()
+```
