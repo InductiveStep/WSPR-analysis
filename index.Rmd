@@ -1,5 +1,5 @@
 ---
-title: "Grabbing data from the WsprDaemon Timescale Database"
+title: "Analysing WSPR data on the WsprDaemon Timescale Database using R and SQL"
 author: "Andi Fugard M0INF (almost@gmail.com, @[inductivestep](https://twitter.com/InductiveStep))"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 ---
@@ -8,6 +8,8 @@ date: "`r format(Sys.time(), '%d %B %Y')`"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
+This short Markdown file shows how to query the [WsprDaemon Timescale Database](http://wsprdaemon.org/timebasedb.html) using R and SQL.
 
 
 ## Setup packages
@@ -19,7 +21,7 @@ library(tidyverse)
 ```
 
 
-## Connect to database
+## Connect to the database
 
 The settings are available [over here](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf).
 
@@ -40,7 +42,6 @@ Check if it worked:
 ```{r}
 dbListTables(db_con) 
 ```
-
 Yes!
 
 Let's try an example from the WsprDaemon Timescale Databases Notes ([Version 2.0 November 2020](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf)):
@@ -53,7 +54,7 @@ res <- dbSendQuery(db_con, "SELECT * FROM spots ORDER BY wd_time DESC LIMIT 1")
 dbFetch(res)
 ```
 
-Yes - works.
+Yes -- works.
 
 ```{r}
 dbClearResult(res)
@@ -61,6 +62,8 @@ dbClearResult(res)
 
 
 ## Grab a time range
+
+Let's try one day's worth of data -- reception reports of M0INF. There's a SQL quirk below. Variable names which aren't all in lower case (such as `CallSign`) have to be referenced using double quotation marks; the quotes are escaped using the backslash. String literals like a callsign use single quotes.
 
 ```{r}
 one_day <- dbSendQuery(db_con,
@@ -70,12 +73,16 @@ one_day <- dbSendQuery(db_con,
          AND wd_time < '2021-01-04T00:00:00Z';")
 ```
 
+This fetches the data to a data frame:
+
 ```{r}
 the_dat <- dbFetch(one_day)
 dbClearResult(one_day)
 ```
 
-```{r fig.height=3, fig.width=6, dpi = 300}
+Now plot:
+
+```{r fig.height=5, fig.width=6, dpi = 300}
 the_dat %>%
   ggplot(aes(wd_time, distance)) +
   geom_point() +
@@ -86,6 +93,7 @@ the_dat %>%
   scale_x_datetime(date_breaks = "2 hour", date_labels = "%H")
 ```
 
+Let's do the same again; however, now with reception reports both by and of M0INF.
 
 ```{r}
 one_day_send_receive <- dbSendQuery(db_con,
@@ -107,6 +115,8 @@ the_dat_send_rec <- the_dat_send_rec %>%
                             "Tx by M0INF"))
 ```
 
+The graph is a bit crowded so the y-axis is on the $\log_{10}$ scale.
+
 ```{r fig.height=3, fig.width=6, dpi = 300}
 the_dat_send_rec %>%
   ggplot(aes(wd_time, distance, colour = Direction)) +
@@ -119,7 +129,7 @@ the_dat_send_rec %>%
   scale_x_datetime(date_breaks = "2 hour", date_labels = "%H")
 ```
 
-Which of those are over 5000 km?
+Which of those reports are over 5000 km?
 
 ```{r}
 the_dat_send_rec %>%

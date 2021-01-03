@@ -1,3 +1,3 @@
-# Grabbing data from the WsprDaemon Timescale Database
+# Analysing WSPR data on the WsprDaemon Timescale Database using R and SQL
  
 Rendered as html [over there](https://inductivestep.github.io/WSPR-analysis/).
