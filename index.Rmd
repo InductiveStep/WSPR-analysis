@@ -60,5 +60,31 @@ dbClearResult(res)
 ```
 
 
-## More to follow...
+## Grab a time range
+
+
+```{r}
+one_day <- dbSendQuery(db_con, "SELECT * FROM spots WHERE \"CallSign\" = 'M0INF' AND wd_time >= '2021-01-03T00:00:00Z' AND wd_time < '2021-01-04T00:00:00Z';")
+```
+
+Peek:
+
+```{r}
+the_dat <- dbFetch(one_day)
+dbClearResult(one_day)
+```
+
+
+
+
+```{r fig.height=3, fig.width=6}
+the_dat %>%
+  ggplot(aes(wd_time, distance)) +
+  geom_point() +
+  geom_smooth() +
+  labs(x = "Time", y = "Distance (km)",
+       title = "WSPR reports of M0INF",
+       subtitle = "3 Jan 2021, 20m band")
+```
+
 
