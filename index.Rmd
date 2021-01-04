@@ -139,7 +139,7 @@ the_dat_send_rec %>%
   stat_smooth(geom="line",
               alpha = 0.5, size = 0.8,
               method = "gam",
-              formula = y ~ s(x, k = 10)) +
+              formula = y ~ s(x, k = 25)) +
   labs(x = "Time", y = "Distance (km)",
        title = "WSPR reports",
        subtitle = "3 Jan 2021, 20m band") +
