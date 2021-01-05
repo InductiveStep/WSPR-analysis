@@ -299,6 +299,44 @@ the_dat %>%
 ```
 
 
+Try again for latest 40m data:
+
+```{r}
+one_day_40m <- dbSendQuery(db_con,
+  "SELECT * FROM spots
+   WHERE \"CallSign\" = 'M0INF'
+         AND wd_time >= '2021-01-05T00:00:00Z'
+         AND wd_time < '2021-01-06T00:00:00Z';")
+```
+
+```{r}
+dat_40m <- dbFetch(one_day_40m)
+dbClearResult(one_day_40m)
+```
+
+```{r}
+dat_sent_many_40 <- dat_40m %>%
+  group_by(Reporter) %>%
+  summarise(spots = n()) %>%
+  arrange(desc(spots)) %>%
+  slice_head(n = 10)
+dat_sent_many_40
+```
+
+
+```{r fig.height=4, fig.width=6, dpi = 300}
+dat_40m %>%
+  mutate(ReportDist = paste0(Reporter, " (", distance, "km)")) %>%
+  filter(Reporter %in% unique(dat_sent_many_40$Reporter)) %>%
+  ggplot(aes(wd_time, dB, colour = ReportDist)) +
+    geom_smooth(span = 2, se = FALSE) +
+    geom_point(size = 0.9, alpha = 0.5) +
+    labs(x = "Time", y = "dB",
+         title = "WSPR reports (40m) – signal strength",
+         subtitle = "Reports of M0INF on 5 Jan 2021",
+         colour = "Reporter") +
+    scale_x_datetime(date_breaks = "2 hour", date_labels = "%H")
+```
 
 
 ## Last hour sent/received from IO91
@@ -332,10 +370,8 @@ wspr_bands <- tibble(
   ),
   m = 299.792458 / MHz,
   wavelength_text = ifelse(m >= 1,
-                           paste0(round(m, 0), " m"),
-                           paste0(round(
-                             m * 100, 0
-                           ), " cm"))
+                           paste(round(m, 0), "m"),
+                           paste(round(m*100, 0), "cm"))
 ) %>%
   arrange(MHz)
 
