@@ -236,6 +236,9 @@ two_dat_send_rec %>%
 
 ## Last hour sent/received from IO91
 
+
+### Jitter plot
+
 Here are the WSPR frequencies, for labeling the plot in a moment.
 
 ```{r}
@@ -325,3 +328,56 @@ joined_dat %>%
                          " to ", max(the_dat$wd_time))) + 
   theme(legend.position = "none")
 ```
+
+
+
+### Polar plot
+
+
+Let's do the same again but also showing the direction, for transmissions from IO91 only.
+
+
+```{r}
+tx_only <- joined_dat %>%
+  filter(grepl(pattern = "IO91", x = Grid, ignore.case = TRUE))
+```
+
+
+
+
+```{r fig.height=8, fig.width=8, dpi = 300}
+linear_scale_polar <- tx_only %>%
+  ggplot(aes(azimuth, distance, colour = MHz.y)) +
+  geom_point(alpha = 0.5) +
+  labs(
+    title = "WSPR spots IO91 (sent or received)",
+    subtitle = paste0("From ", min(the_dat$wd_time),
+                      " to ", max(the_dat$wd_time)),
+    colour = "Freq (MHz)",
+    x = NULL,
+    y = "Distance"
+  ) +
+  scale_x_continuous(
+    limits = c(0, 360),
+    breaks = seq(0, 315, by = 45),
+    minor_breaks = seq(0, 360, by = 15)
+  ) +
+  coord_polar()
+
+linear_scale_polar
+```
+
+
+
+```{r fig.height=8, fig.width=8, dpi = 300}
+linear_scale_polar +
+  scale_y_continuous(trans = "log10")
+```
+
+
+```{r}
+tx_only %>%
+  filter(distance > 8000) %>%
+  select(CallSign, Reporter, distance, azimuth)
+```
+
