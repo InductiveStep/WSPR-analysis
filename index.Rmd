@@ -319,7 +319,8 @@ dat_sent_many_40 <- dat_40m %>%
   group_by(Reporter) %>%
   summarise(spots = n()) %>%
   arrange(desc(spots)) %>%
-  slice_head(n = 10)
+  #filter(spots >= 5)
+  slice_head(n = 7)
 dat_sent_many_40
 ```
 
@@ -329,11 +330,11 @@ dat_40m %>%
   mutate(ReportDist = paste0(Reporter, " (", distance, "km)")) %>%
   filter(Reporter %in% unique(dat_sent_many_40$Reporter)) %>%
   ggplot(aes(wd_time, dB, colour = ReportDist)) +
-    geom_smooth(span = 2, se = FALSE) +
-    geom_point(size = 0.9, alpha = 0.5) +
+    geom_smooth(span = 2, se = FALSE, size = 0.8) +
+    geom_point(size = 0.6, alpha = 0.5) +
     labs(x = "Time", y = "dB",
          title = "WSPR reports (40m) – signal strength",
-         subtitle = "Reports of M0INF on 5 Jan 2021",
+         subtitle = "A selection of reporters on 5 Jan 2021",
          colour = "Reporter") +
     scale_x_datetime(date_breaks = "2 hour", date_labels = "%H")
 ```
@@ -433,7 +434,7 @@ joined_dat %>%
 ```
 
 
-Try again, but this time separating the transmisions and receptions in IO91.
+Try again, but this time separating the transmissions and receptions in IO91.
 
 ```{r}
 joined_dat <- joined_dat %>%
@@ -480,7 +481,7 @@ linear_scale_polar <- tx_only %>%
   ggplot(aes(azimuth, distance, colour = MHz.y)) +
   geom_point(alpha = 0.5) +
   labs(
-    title = "WSPR spots IO91 (sent or received)",
+    title = "WSPR spots IO91",
     subtitle = paste0("From ", min(the_dat$wd_time),
                       " to ", max(the_dat$wd_time)),
     colour = "Freq (MHz)",
@@ -508,7 +509,8 @@ linear_scale_polar +
 ```{r}
 tx_only %>%
   filter(distance > 8000) %>%
-  select(CallSign, Reporter, distance, azimuth, MHz.x)
+  select(CallSign, Reporter, distance, azimuth, MHz.x) %>%
+  kable()
 ```
 
 
