@@ -281,7 +281,8 @@ dat_sent_many <- the_dat %>%
   summarise(spots = n()) %>%
   arrange(desc(spots)) %>%
   slice_head(n = 7)
-dat_sent_many
+dat_sent_many %>%
+  kable()
 ```
 
 
@@ -321,7 +322,8 @@ dat_sent_many_40 <- dat_40m %>%
   arrange(desc(spots)) %>%
   #filter(spots >= 5)
   slice_head(n = 7)
-dat_sent_many_40
+dat_sent_many_40 %>%
+  kable()
 ```
 
 
@@ -473,9 +475,6 @@ tx_only <- joined_dat %>%
   filter(grepl(pattern = "IO91", x = Grid, ignore.case = TRUE))
 ```
 
-
-
-
 ```{r fig.height=8, fig.width=8, dpi = 300}
 linear_scale_polar <- tx_only %>%
   ggplot(aes(azimuth, distance, colour = MHz.y)) +
@@ -498,13 +497,10 @@ linear_scale_polar <- tx_only %>%
 linear_scale_polar
 ```
 
-
-
 ```{r fig.height=8, fig.width=8, dpi = 300}
 linear_scale_polar +
   scale_y_continuous(trans = "log10")
 ```
-
 
 ```{r}
 tx_only %>%
@@ -513,8 +509,104 @@ tx_only %>%
   kable()
 ```
 
+## A bigger one - 48 hours of spots on all frequencies to/from IO91
+
+```{r cache=TRUE}
+IO91_48hrs <- dbSendQuery(db_con,
+  "SELECT * FROM spots
+   WHERE (\"ReporterGrid\" LIKE 'IO91%'
+          OR \"Grid\" LIKE 'IO91%')
+         AND wd_time >= '2021-01-05T00:00:00Z'
+         AND wd_time < '2021-01-07T00:00:00Z';")
+```
+
+```{r cache=TRUE}
+IO91_48hrs_dat <- dbFetch(IO91_48hrs)
+dbClearResult(IO91_48hrs)
+nrow(IO91_48hrs_dat)
+```
+
+```{r}
+IO91_48hrs_dat_bands <- IO91_48hrs_dat %>%
+  difference_left_join(wspr_bands,
+                       by = "MHz",
+                       max_dist = 0.1,
+                       distance_col = "dist_band_start") %>%
+  mutate(
+    MHz.y = as.factor(MHz.y),
+    direction = ifelse(
+      grepl(
+        pattern = "IO91",
+        x = Grid,
+        ignore.case = TRUE
+      ),
+      "From IO91",
+      "To IO91"
+    )
+  )
+```
+
+```{r}
+IO91_48hrs_dat_bands %>%
+  filter(dist_band_start > 5/1000) %>%
+  select(CallSign, Reporter, MHz.x, MHz.y, dist_band_start) %>%
+  arrange(desc(dist_band_start))  %>%
+  datatable(options = dt_options)
+```
+
+```{r}
+IO91_48hrs_dat_bands %>%
+  filter(is.na(MHz.y)) %>%
+  select(CallSign, Reporter, MHz.x, MHz.y, dist_band_start) %>%
+  datatable(options = dt_options)
+```
+
+
+```{r}
+summary(IO91_48hrs_dat_bands$dist_band_start*1000)
+```
 
 
 
+```{r fig.height=5, fig.width=7, dpi = 300}
+IO91_48hrs_dat_bands %>%
+  filter(!is.na(MHz.y)) %>%
+  ggplot(aes(x = distance, fill = MHz.y)) +
+  geom_histogram(aes(y=..density..), binwidth = 500, position = "identity", alpha = 0.5) +
+  facet_grid(rows = vars(direction)) +
+  labs(x = "Distance (km)", y = "Mass", fill = "Freq (MHz)")
+```
 
+
+
+```{r}
+date_format <- "%d %b %Y (%H:%m)"
+```
+
+
+```{r fig.height=20, fig.width=7, dpi = 300}
+IO91_48hrs_dat_bands %>%
+  filter(!is.na(MHz.y)) %>%
+  ggplot(aes(x = distance, fill = MHz.y)) +
+  geom_histogram(
+    aes(y = ..density..),
+    binwidth = 500,
+    position = "identity",
+    alpha = 0.5
+  ) +
+  facet_grid(cols = vars(direction), rows = vars(MHz.y)) +
+  labs(
+    x = "Distance (km)",
+    y = "Mass",
+    fill = "Freq (MHz)",
+    title = "WSPR reports to/from IO91 by band",
+    subtitle = paste0(format(
+      min(IO91_48hrs_dat_bands$wd_time), date_format
+    ), " to ",
+    format(
+      max(IO91_48hrs_dat_bands$wd_time), date_format
+    ))
+  ) +
+  theme(legend.position = "none")
+```
 
