@@ -647,12 +647,11 @@ IO91_48hrs_dat_bands_sf <- IO91_48hrs_dat_bands %>%
            crs = 4326)
 ```
 
-This step is rather slow...
+This step takes up to two minutes, so I have cached it in the markdown. Hopefully it will go quickly...
 
 ```{r}
 t1 <- Sys.time()
 ```
-
 
 ```{r fig.height=40, fig.width=7, dpi = 300, cache=TRUE}
 IO91_48hrs_dat_bands_sf %>%
@@ -703,31 +702,25 @@ IO91_48hrs_dat_bands %>%
 
 ```{r}
 dat_for_clust <- IO91_48hrs_dat_bands %>%
-  filter(MHz.y == "14.0956")
+  filter(MHz.y == "14.0956" & direction == "From IO91")
 nrow(dat_for_clust)
 ```
 
 
-This kinda works for 14 MHz (20m):
-
-* Three clusters
-* First cluster mean is left free
-* Second mean $a$
-* Third $2a$
-* SD constant for all clusters
-
 ```{r}
-cluster_n = 3
-means <- c(NA, paste0(1:(cluster_n-1), "n"))
-sds   <- c(rep("b", cluster_n))
+cluster_n = 6
+start_means <- c(0, 1500, 6000, 10000, 12000, 17000)
+#means <- c(NA, paste0(1:(cluster_n-1), "n"))
+sds   <- c(NA, rep("b", cluster_n-1))
 
 
 clust_res <- normalmixEM(dat_for_clust$distance,
-                         k = cluster_n,
-                         mean.constr = means,
-                         sd.constr = sds)
+                         mu = start_means,
+                         #mean.constr = means,
+                         sd.constr = sds,
+                         k = cluster_n)
 summary(clust_res)
-plot(clust_res, which = 2)
+#plot(clust_res, which = 2)
 ```
 
 
@@ -751,13 +744,18 @@ dat_for_clust %>%
 
 
 
-```{r fig.height=3, fig.width=6, dpi = 300}
-plot(ecdf(dat_for_clust$distance))
+```{r}
+clust_means <- dat_for_clust %>%
+  group_by(cluster) %>%
+  summarise(clust_mean_dist = mean(distance))
 ```
+
+
 
 
 ```{r}
 dat_for_clust_sf <- dat_for_clust %>%
+  left_join(clust_means) %>%
   st_as_sf(coords = c("wd_rx_lon", "wd_rx_lat"),
            crs = 4326)
 ```
@@ -781,4 +779,21 @@ dat_for_clust_sf %>%
       ))
     )
 ```
+
+
+
+```{r dpi = 300}
+dat_for_clust_sf %>%
+  ggplot(aes(x = wd_time, y = dB, colour = ordered(round(clust_mean_dist,0)))) +
+  #geom_smooth(span = 3, se = FALSE, size = 2) 
+  geom_jitter(size = 2, alpha = 0.5) +
+  labs(colour = "Mean cluster dist (km)", x = NULL)
+```
+
+
+
+
+## db plots again - the easy way...
+
+
 
