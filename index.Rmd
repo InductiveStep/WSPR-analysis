@@ -26,7 +26,9 @@ library(tidyverse)
 library(DT)
 library(knitr)
 library(fuzzyjoin)
-
+library(tmap)
+library(sf)
+data(World)
 dt_options <- list(pageLength=7, scrollX = "400px")
 ```
 
@@ -589,10 +591,9 @@ IO91_48hrs_dat_bands %>%
   filter(!is.na(MHz.y)) %>%
   ggplot(aes(x = distance, fill = MHz.y)) +
   geom_histogram(
-    aes(y = ..density..),
-    binwidth = 500,
+    #aes(y = ..density..),
+    binwidth = 200,
     position = "identity",
-    alpha = 0.5
   ) +
   facet_grid(cols = vars(direction), rows = vars(MHz.y)) +
   labs(
@@ -610,3 +611,72 @@ IO91_48hrs_dat_bands %>%
   theme(legend.position = "none")
 ```
 
+### Polar map
+
+```{r fig.height=40, fig.width=7, dpi = 300}
+IO91_48hrs_dat_bands %>%
+  filter(!is.na(MHz.y) & direction == "From IO91") %>%
+  ggplot(aes(azimuth, y = distance)) +
+  geom_point() +
+  facet_grid(rows = vars(MHz.y)) +
+  labs(
+    x = "Distance (km)",
+    y = "Mass",
+    fill = "Freq (MHz)",
+    title = "WSPR reports from IO91 by band",
+    subtitle = paste0(format(
+      min(IO91_48hrs_dat_bands$wd_time), date_format
+    ), " to ",
+    format(
+      max(IO91_48hrs_dat_bands$wd_time), date_format
+    ))
+  ) +
+  scale_x_continuous(
+    limits = c(0, 360),
+    breaks = seq(0, 315, by = 45),
+    minor_breaks = seq(0, 360, by = 15)
+  ) +
+  coord_polar()
+```
+
+### Plot on maps
+
+```{r}
+IO91_48hrs_dat_bands_sf <- IO91_48hrs_dat_bands %>%
+  st_as_sf(coords = c("wd_rx_lon", "wd_rx_lat"),
+           crs = 4326)
+```
+
+This step is rather slow...
+
+```{r}
+t1 <- Sys.time()
+```
+
+
+```{r fig.height=40, fig.width=7, dpi = 300}
+IO91_48hrs_dat_bands_sf %>%
+  filter(!is.na(MHz.y)) %>%
+  ggplot() +
+    geom_sf(data = World) +
+    geom_sf(aes(colour = MHz.y)) +
+    facet_grid(rows = vars(MHz.y)) +
+    theme_classic() +
+    labs(
+      colour = "Freq (MHz)",
+      title = "WSPR reports from IO91 by band",
+      subtitle = paste0(format(
+        min(IO91_48hrs_dat_bands$wd_time), date_format
+      ), " to ",
+      format(
+        max(IO91_48hrs_dat_bands$wd_time), date_format
+      ))
+    ) +
+    theme(legend.position = "none")
+```
+
+
+```{r}
+t2 <- Sys.time()
+t2 - t1
+```
