@@ -654,7 +654,7 @@ t1 <- Sys.time()
 ```
 
 
-```{r fig.height=40, fig.width=7, dpi = 300}
+```{r fig.height=40, fig.width=7, dpi = 300, cache=TRUE}
 IO91_48hrs_dat_bands_sf %>%
   filter(!is.na(MHz.y)) %>%
   ggplot() +
@@ -680,3 +680,105 @@ IO91_48hrs_dat_bands_sf %>%
 t2 <- Sys.time()
 t2 - t1
 ```
+
+
+## Try fitting a mixture model
+
+
+```{r}
+library(mixtools)
+```
+
+
+```{r}
+IO91_48hrs_dat_bands %>%
+  group_by(MHz.y) %>%
+  summarise(spots = n(),
+            dist_p25 = quantile(distance,p=.25),
+            dist_p75 = quantile(distance,p=.75)) %>%
+  kable()
+```
+
+
+
+```{r}
+dat_for_clust <- IO91_48hrs_dat_bands %>%
+  filter(MHz.y == "14.0956")
+nrow(dat_for_clust)
+```
+
+
+This kinda works for 14 MHz (20m):
+
+* Three clusters
+* First cluster mean is left free
+* Second mean $a$
+* Third $2a$
+* SD constant for all clusters
+
+```{r}
+cluster_n = 3
+means <- c(NA, paste0(1:(cluster_n-1), "n"))
+sds   <- c(rep("b", cluster_n))
+
+
+clust_res <- normalmixEM(dat_for_clust$distance,
+                         k = cluster_n,
+                         mean.constr = means,
+                         sd.constr = sds)
+summary(clust_res)
+plot(clust_res, which = 2)
+```
+
+
+```{r}
+clusters <- clust_res$posterior %>%
+  as.data.frame() %>%
+  rowwise() %>%
+  mutate(cluster = which.max(c_across()))
+
+dat_for_clust$cluster <- factor(clusters$cluster)
+
+dat_for_clust %>%
+  ggplot(aes(x = distance, fill = cluster)) +
+  geom_histogram(alpha = 0.5,
+                 position = "identity",
+                 binwidth = 500) +
+  labs(x = "Distance (km)",
+       y = "Count",
+       fill = "Cluster")
+```
+
+
+
+```{r fig.height=3, fig.width=6, dpi = 300}
+plot(ecdf(dat_for_clust$distance))
+```
+
+
+```{r}
+dat_for_clust_sf <- dat_for_clust %>%
+  st_as_sf(coords = c("wd_rx_lon", "wd_rx_lat"),
+           crs = 4326)
+```
+
+
+
+```{r}
+dat_for_clust_sf %>%
+  ggplot() +
+    geom_sf(data = World) +
+    geom_sf(aes(colour = cluster)) +
+    theme_classic() +
+    labs(
+      colour = "Cluster",
+      title = "WSPR reports from IO91 (clusters)",
+      subtitle = paste0(format(
+        min(IO91_48hrs_dat_bands$wd_time), date_format
+      ), " to ",
+      format(
+        max(IO91_48hrs_dat_bands$wd_time), date_format
+      ))
+    )
+```
+

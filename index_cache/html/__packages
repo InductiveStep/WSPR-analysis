@@ -13,3 +13,5 @@ forcats
 DT
 knitr
 fuzzyjoin
+tmap
+sf
