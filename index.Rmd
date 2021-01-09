@@ -614,7 +614,7 @@ IO91_48hrs_dat_bands %>%
 
 ### Polar plots
 
-```{r fig.height=40, fig.width=7, dpi = 300}
+```{r polar-plots, fig.height=40, fig.width=7, dpi = 300}
 IO91_48hrs_dat_bands %>%
   filter(!is.na(MHz.y) & direction == "From IO91") %>%
   ggplot(aes(azimuth, y = distance)) +
@@ -644,7 +644,7 @@ IO91_48hrs_dat_bands %>%
 
 This needs to be tweaked but is a start. The 4326 magic number refers to the coordinate reference system. This [Wikipedia article](https://en.wikipedia.org/wiki/World_Geodetic_System) is as good a place as any to start... The `st_as_sf` function transforms longitude and lattitude coordinates to a system that the map plot can use.
 
-```{r}
+```{r IO91_48hrs_dat_bands_sf}
 IO91_48hrs_dat_bands_sf <- IO91_48hrs_dat_bands %>%
   st_as_sf(coords = c("wd_rx_lon", "wd_rx_lat"),
            crs = 4326)
@@ -698,7 +698,7 @@ library(mixtools)
 
 First summarise the data to work out which band to play with:
 
-```{r}
+```{r IO91_48hrs_dat_bands}
 IO91_48hrs_dat_bands %>%
   filter(direction == "From IO91") %>%
   group_by(MHz.y) %>%
@@ -711,7 +711,7 @@ IO91_48hrs_dat_bands %>%
 
 I'm going to go for the 20m band since there are loads of observations and the signals carry some distance. (I should have gone for unique reports to count, but onwards...)
 
-```{r}
+```{r dat_for_clust}
 dat_for_clust <- IO91_48hrs_dat_bands %>%
   filter(MHz.y == "14.0956" & direction == "From IO91")
 nrow(dat_for_clust)
@@ -719,7 +719,7 @@ nrow(dat_for_clust)
 
 This is a bit silly since to get it work I have had to provide a lot of clues based on visual inspection... I was going to constrain the means of clusters to be multiples of the second to try to model skip. It didn't work, but I have left the code in commented out.
 
-```{r}
+```{r clust_res}
 cluster_n = 6
 start_means <- c(0, 1500, 6000, 10000, 12000, 17000)
 #means <- c(NA, paste0(1:(cluster_n-1), "n"))
@@ -813,5 +813,80 @@ dat_for_clust_sf %>%
 
 ## db plots again - the easy way...
 
-(To be completed...)
+Here's the maximum distance half-way around earth (measured around the equator):
+
+```{r}
+half_earth_circle <- 40075/2
+half_earth_circle
+```
+
+
+
+```{r}
+10^(1:4)
+```
+
+
+
+
+
+```{r}
+IO91_48hrs_dat_bands %>%
+  ggplot(aes(x=distance+1)) +
+  geom_histogram(bins = 500) +
+  scale_x_continuous(trans = "log10") +
+  xlab("log(km + 1)")
+```
+
+
+```{r}
+IO91_48hrs_dat_bands <- IO91_48hrs_dat_bands %>%
+  mutate(distance_band = cut(
+    distance,
+    right = FALSE,
+    breaks = c(0, 10 ^ (1:4), 2e5),
+    labels = c("[0, 10)",
+               "[10, 100)",
+               "[100, 1000)",
+               "[1000, 10000)",
+               "10000+")
+  ))
+
+IO91_48hrs_dat_bands %>%
+  group_by(distance_band) %>%
+  summarise(mean = mean(distance),
+          min  = min(distance),
+          max  = max(distance))
+```
+
+
+```{r}
+IO91_48hrs_dat_bands$MHz.y %>%
+  levels
+```
+
+
+
+```{r fig.height=6, fig.width=7, dpi=300}
+library(viridis)
+
+IO91_48hrs_dat_bands %>%
+  filter(MHz.y %in% c("7.0386", "10.1387", "14.0956")) %>%
+  filter(direction == "From IO91") %>%
+  ggplot(aes(
+    x = wd_time,
+    y = dB,
+    colour = ordered(distance_band)
+  )) +
+  geom_jitter(size = .5, alpha = 0.3) +
+  labs(colour = "Distance",
+       x = NULL,
+       y = "Signal strength (dB)",
+       title = "Reports of WSPR signals sent from IO91") +
+  theme(legend.position = "bottom") +
+  guides(colour = guide_legend(override.aes = list(size = 7))) +
+  facet_wrap(vars(MHz.y), ncol = 1) +
+  scale_colour_viridis(option = "magma", discrete = T)
+```
+
 
