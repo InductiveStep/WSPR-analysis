@@ -813,22 +813,14 @@ dat_for_clust_sf %>%
 
 ## db plots again - the easy way...
 
-Here's the maximum distance half-way around earth (measured around the equator):
+Here's the maximum distance half-way around earth (measured around the equator), to have a sense of how far signals can travel by shortest path...
 
 ```{r}
 half_earth_circle <- 40075/2
 half_earth_circle
 ```
 
-
-
-```{r}
-10^(1:4)
-```
-
-
-
-
+And actual distances:
 
 ```{r}
 IO91_48hrs_dat_bands %>%
@@ -838,6 +830,8 @@ IO91_48hrs_dat_bands %>%
   xlab("log(km + 1)")
 ```
 
+
+Discretise the distances:
 
 ```{r}
 IO91_48hrs_dat_bands <- IO91_48hrs_dat_bands %>%
@@ -860,6 +854,8 @@ IO91_48hrs_dat_bands %>%
 ```
 
 
+Now select a few bands to plot.
+
 ```{r}
 IO91_48hrs_dat_bands$MHz.y %>%
   levels
@@ -879,7 +875,7 @@ IO91_48hrs_dat_bands %>%
     colour = ordered(distance_band)
   )) +
   geom_jitter(size = .5, alpha = 0.3) +
-  labs(colour = "Distance",
+  labs(colour = "Distance (km)",
        x = NULL,
        y = "Signal strength (dB)",
        title = "Reports of WSPR signals sent from IO91") +
