@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-This short Markdown file shows how to query the [WsprDaemon Timescale Database](http://wsprdaemon.org/timebasedb.html) using R and SQL.
+This is a collection of examples showing how to query the [WsprDaemon Timescale Database](http://wsprdaemon.org/timebasedb.html) using R and SQL and visualise the results using the tidyverse.
 
 
 ## Setup packages
@@ -35,7 +35,9 @@ dt_options <- list(pageLength=7, scrollX = "400px")
 
 ## Connect to the database
 
-The settings are available [over here](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf).
+The WSPR database uses [PostgreSQL](https://www.postgresql.org/) which is supported in R by the `RPostgres` package.
+
+Here are the settings required to connect -- available [over here](http://wsprdaemon.org/ewExternalFiles/Timescale_wsprdaemon_database_queries_and_APIs_V2.pdf). (Normally you shouldn't hardcode login details like this, but there is only one login and it's public.)
 
 ```{r}
 db_name <- "wsprnet"
@@ -62,7 +64,7 @@ Let's try an example based on SQL from the WsprDaemon Timescale Databases Notes 
 res <- dbSendQuery(db_con,
   "SELECT * FROM spots
    ORDER BY wd_time DESC
-   LIMIT 20;")
+   LIMIT 5;")
 ```
 
 ```{r}
@@ -77,11 +79,13 @@ dbClearResult(res)
 ```
 
 
-## Grab a time range
+## Grab a day's data
 
-### All transmisions 
+### Transmissions 
 
-Let's try one day's worth of data -- reception reports of M0INF. There's a SQL quirk below. Variable names which aren't all in lower case (such as `CallSign`) have to be referenced using double quotation marks; the quotes are escaped using the backslash. String literals like a callsign use single quotes.
+Let's try one day's worth of data -- reception reports of M0INF. 
+
+There's a SQL quirk below. Variable names which aren't all in lower case (such as `CallSign`) have to be referenced using double quotation marks; the quotes are escaped using the backslash. String literals like a callsign or date use single quotes.
 
 ```{r}
 one_day <- dbSendQuery(db_con,
@@ -139,7 +143,7 @@ the_dat_send_rec <- the_dat_send_rec %>%
                             "Tx by M0INF"))
 ```
 
-The graph is a bit crowded so the y-axis is on the $\log_{10}$ scale.
+The graph is a bit crowded so I put the y-axis on the $\log_{10}$ scale.
 
 ```{r fig.height=5, fig.width=6, dpi = 300}
 the_dat_send_rec %>%
@@ -301,6 +305,7 @@ the_dat %>%
   scale_x_datetime(date_breaks = "2 hour", date_labels = "%H")
 ```
 
+It's showing something... the red curve is straightish since it's not relying on the ionosphere. The others do use ionospheric propagation so vary as conditions change.
 
 Try again for latest 40m data:
 
@@ -404,7 +409,7 @@ dbClearResult(last_whispers)
 nrow(the_dat)
 ```
 
-Group into WSPR bands:
+Group into WSPR bands. This uses the `fuzzyjoin` package which matches by distance.
 
 ```{r}
 joined_dat <- the_dat %>%
@@ -527,6 +532,8 @@ IO91_48hrs_dat <- dbFetch(IO91_48hrs)
 dbClearResult(IO91_48hrs)
 nrow(IO91_48hrs_dat)
 ```
+There were `r nrow(IO91_48hrs_dat)` rows of data.
+
 
 ```{r}
 IO91_48hrs_dat_bands <- IO91_48hrs_dat %>%
@@ -548,13 +555,7 @@ IO91_48hrs_dat_bands <- IO91_48hrs_dat %>%
   )
 ```
 
-```{r}
-IO91_48hrs_dat_bands %>%
-  filter(dist_band_start > 5/1000) %>%
-  select(CallSign, Reporter, MHz.x, MHz.y, dist_band_start) %>%
-  arrange(desc(dist_band_start))  %>%
-  datatable(options = dt_options)
-```
+Here are spots which couldn't be classified in a band:
 
 ```{r}
 IO91_48hrs_dat_bands %>%
@@ -611,7 +612,7 @@ IO91_48hrs_dat_bands %>%
   theme(legend.position = "none")
 ```
 
-### Polar map
+### Polar plots
 
 ```{r fig.height=40, fig.width=7, dpi = 300}
 IO91_48hrs_dat_bands %>%
@@ -641,13 +642,15 @@ IO91_48hrs_dat_bands %>%
 
 ### Plot on maps
 
+This needs to be tweaked but is a start. The 4326 magic number refers to the coordinate reference system. This [Wikipedia article](https://en.wikipedia.org/wiki/World_Geodetic_System) is as good a place as any to start... The `st_as_sf` function transforms longitude and lattitude coordinates to a system that the map plot can use.
+
 ```{r}
 IO91_48hrs_dat_bands_sf <- IO91_48hrs_dat_bands %>%
   st_as_sf(coords = c("wd_rx_lon", "wd_rx_lat"),
            crs = 4326)
 ```
 
-This step takes up to two minutes, so I have cached it in the markdown. Hopefully it will go quickly...
+The following steps takes up to two minutes on my laptop, so I have cached the result in the markdown. Timing code added here to check that it worked.
 
 ```{r}
 t1 <- Sys.time()
@@ -680,8 +683,12 @@ t2 <- Sys.time()
 t2 - t1
 ```
 
+If the caching worked then that timer should be a few seconds.
+
 
 ## Try fitting a mixture model
+
+This section seemed like a good idea at the time...
 
 
 ```{r}
@@ -689,8 +696,11 @@ library(mixtools)
 ```
 
 
+First summarise the data to work out which band to play with:
+
 ```{r}
 IO91_48hrs_dat_bands %>%
+  filter(direction == "From IO91") %>%
   group_by(MHz.y) %>%
   summarise(spots = n(),
             dist_p25 = quantile(distance,p=.25),
@@ -699,6 +709,7 @@ IO91_48hrs_dat_bands %>%
 ```
 
 
+I'm going to go for the 20m band since there are loads of observations and the signals carry some distance. (I should have gone for unique reports to count, but onwards...)
 
 ```{r}
 dat_for_clust <- IO91_48hrs_dat_bands %>%
@@ -706,6 +717,7 @@ dat_for_clust <- IO91_48hrs_dat_bands %>%
 nrow(dat_for_clust)
 ```
 
+This is a bit silly since to get it work I have had to provide a lot of clues based on visual inspection... I was going to constrain the means of clusters to be multiples of the second to try to model skip. It didn't work, but I have left the code in commented out.
 
 ```{r}
 cluster_n = 6
@@ -720,17 +732,20 @@ clust_res <- normalmixEM(dat_for_clust$distance,
                          sd.constr = sds,
                          k = cluster_n)
 summary(clust_res)
-#plot(clust_res, which = 2)
+```
+
+```{r}
+plot(clust_res, which = 2, breaks = 100)
 ```
 
 
-```{r}
+```{r cluster-hist, fig.height=3, fig.width=6, dpi = 300}
 clusters <- clust_res$posterior %>%
   as.data.frame() %>%
   rowwise() %>%
   mutate(cluster = which.max(c_across()))
 
-dat_for_clust$cluster <- factor(clusters$cluster)
+dat_for_clust$cluster <- ordered(clusters$cluster)
 
 dat_for_clust %>%
   ggplot(aes(x = distance, fill = cluster)) +
@@ -739,12 +754,13 @@ dat_for_clust %>%
                  binwidth = 500) +
   labs(x = "Distance (km)",
        y = "Count",
-       fill = "Cluster")
+       fill = "Cluster") +
+  theme(legend.position = "bottom")
 ```
 
 
 
-```{r}
+```{r clust_means}
 clust_means <- dat_for_clust %>%
   group_by(cluster) %>%
   summarise(clust_mean_dist = mean(distance))
@@ -766,7 +782,7 @@ dat_for_clust_sf <- dat_for_clust %>%
 dat_for_clust_sf %>%
   ggplot() +
     geom_sf(data = World) +
-    geom_sf(aes(colour = cluster)) +
+    geom_sf(aes(colour = cluster), size = 1) +
     theme_classic() +
     labs(
       colour = "Cluster",
@@ -777,7 +793,9 @@ dat_for_clust_sf %>%
       format(
         max(IO91_48hrs_dat_bands$wd_time), date_format
       ))
-    )
+    ) +
+  theme(legend.position = "bottom") +
+  guides(colour = guide_legend(override.aes = list(size=3)))
 ```
 
 
@@ -786,14 +804,14 @@ dat_for_clust_sf %>%
 dat_for_clust_sf %>%
   ggplot(aes(x = wd_time, y = dB, colour = ordered(round(clust_mean_dist,0)))) +
   #geom_smooth(span = 3, se = FALSE, size = 2) 
-  geom_jitter(size = 2, alpha = 0.5) +
-  labs(colour = "Mean cluster dist (km)", x = NULL)
+  geom_jitter(size = 1, alpha = 0.3) +
+  labs(colour = "Mean cluster dist (km)", x = NULL) +
+  theme(legend.position = "bottom") +
+  guides(colour = guide_legend(override.aes = list(size=3)))
 ```
-
-
 
 
 ## db plots again - the easy way...
 
-
+(To be completed...)
 
