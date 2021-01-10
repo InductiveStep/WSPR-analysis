@@ -16,6 +16,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 This is a collection of examples showing how to query the [WsprDaemon Timescale Database](http://wsprdaemon.org/timebasedb.html) using R and SQL and visualise the results using the tidyverse.
 
+**The comments are a little sparse at present -- stay tuned...**
+
 
 ## Setup packages
 
@@ -28,6 +30,9 @@ library(knitr)
 library(fuzzyjoin)
 library(tmap)
 library(sf)
+library(ggeffects)
+library(effects)
+
 data(World)
 dt_options <- list(pageLength=7, scrollX = "400px")
 ```
@@ -884,5 +889,76 @@ IO91_48hrs_dat_bands %>%
   facet_wrap(vars(MHz.y), ncol = 1) +
   scale_colour_viridis(option = "magma", discrete = T)
 ```
+
+
+
+
+## Modelling
+
+```{r}
+library(lme4)
+```
+
+```{r}
+IO91_48hrs_dat_bands$wd_time[1]
+```
+
+```{r}
+IO91_48hrs_dat_bands <- IO91_48hrs_dat_bands %>%
+  mutate(
+    date = format(IO91_48hrs_dat_bands$wd_time, "%F"),
+    hour = format(IO91_48hrs_dat_bands$wd_time, "%H"),
+    hour_num = as.numeric(hour),
+    dist_far = cut(distance,
+                   c(0,100,500,1000,25000),
+                   labels = c("[0,100) km",
+                              "[100,500) km",
+                              "[500,1000) km",
+                              "1000+ km"),
+                   right = FALSE),
+    daylight = factor(hour_num >= 8 &
+                        hour_num <= 16,
+                      labels = c("Light", "Dark")),
+  )
+
+dat_for_mod <- IO91_48hrs_dat_bands %>%
+  mutate(the_freq = factor(round(as.numeric(as.character((MHz.y)))))) %>%
+  filter(MHz.y %in% c("7.0386", "10.1387", "14.0956")) %>%
+  filter(direction == "From IO91")
+```
+
+
+```{r}
+IO91_48hrs_dat_bands %>%
+  group_by(dist_far) %>%
+  tally()
+```
+
+
+```{r}
+db_mod <- lmer(dB ~ date + daylight *
+                 dist_far * the_freq +
+                 (1 | CallSign) +
+                 (1 | Reporter),
+               data = dat_for_mod)
+```
+
+
+```{r}
+db_mod_preds <- ggeffect(db_mod,
+         terms = c("the_freq", "daylight", "dist_far"),
+         type = "fixed")
+```
+
+
+```{r fig.height=5, fig.width=5, dpi = 300}
+db_mod_preds %>%
+  plot() +
+  labs(x = "Band (MHz)", colour = "Daylight") +
+  theme_grey() +
+  facet_wrap(vars(facet), ncol = 2) +
+  theme(legend.position = "bottom")
+```
+
 
 
