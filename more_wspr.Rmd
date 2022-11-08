@@ -1,0 +1,190 @@
+---
+title: "More WSPR"
+author: AndiF
+output: html_notebook
+---
+
+
+```{r}
+library(RPostgres)
+library(DBI)
+library(tidyverse)
+library(fuzzyjoin)
+library(quantreg)
+```
+
+```{r}
+wspr_bands <- tibble(
+  MHz = c(
+    0.136,
+    0.4742,
+    1.8366,
+    3.5686,
+    5.2872,
+    5364.7,
+    7.0386,
+    10.1387,
+    14.0956,
+    18.1046,
+    21.0946,
+    24.9246,
+    28.1246,
+    50.293,
+    70.091,
+    144.489,
+    432.300,
+    1296.500
+  ),
+  m = 299.792458 / MHz,
+  wavelength_text = ifelse(m >= 1,
+                           paste0(round(m, 0), " m"),
+                           paste0(round(m * 100, 0), " cm"))
+) %>%
+  arrange(MHz)
+```
+
+
+
+```{r}
+db_name <- "wsprnet"
+db_host <- "logs2.wsprdaemon.org"
+db_user <- "wdread"
+db_password <- "JTWSPR2008"
+db_con <- dbConnect(
+  RPostgres::Postgres(),
+  dbname = db_name,
+  host = db_host,
+  user = db_user,
+  password = db_password
+)
+```
+
+
+```{r}
+last_whispers <- dbSendQuery(
+  db_con,
+  "SELECT * FROM spots
+             WHERE (\"CallSign\" = 'M0INF' OR \"Reporter\" = 'M0INF')
+               AND wd_time >= NOW() - INTERVAL '2 week';"
+)
+
+the_dat <- dbFetch(last_whispers)
+dbClearResult(last_whispers)
+```
+
+
+```{r}
+joined_dat <- the_dat %>%
+  difference_left_join(wspr_bands,
+                       by = "MHz",
+                       max_dist = 0.2,
+                       distance_col = "dist_band_start") %>%
+  mutate(MHz.y = as.factor(MHz.y)) %>%
+  mutate(Direction = ifelse(Reporter == "M0INF",
+                            "Rx by M0INF",
+                            "Tx by M0INF"))
+```
+
+
+```{r}
+notes_dat <-
+  read.csv(
+    "https://raw.githubusercontent.com/InductiveStep/Public-data/main/wspr-experiments/wspr_notes.txt",
+    sep = "\t"
+  ) %>%
+  mutate(date = as.POSIXct(date))
+```
+
+
+```{r}
+table <- notes_dat %>%
+  mutate(
+    Date = format(date, "%a %d %b %Y"),
+    Time = format(date, "%H:%M"),
+    Antenna = antenna,
+    Orientation = orientation
+  ) %>%
+  select(Date, Time, Antenna, Orientation, Notes)
+table
+```
+
+
+```{r}
+notes_for_graph <- notes_dat %>%
+  filter(date >= min(joined_dat$wd_time))
+
+if (nrow(notes_for_graph) == 0) {
+  notes_for_graph <- notes_dat %>%
+    arrange(date) %>%
+    slice_tail(n = 1)
+}
+```
+
+
+```{r}
+library(lubridate)
+
+min_time <- min(joined_dat$wd_time)
+hour(min_time) <- 0
+minute(min_time) <- 0
+
+max_time <- max(joined_dat$wd_time)
+c(min_time, max_time)
+```
+
+
+
+```{r fig.height=8, fig.width=6, dpi=300}
+joined_dat %>%
+  ggplot(aes(wd_time, distance, colour = MHz.y)) +
+  geom_point(alpha = 0.5, size = 1) +
+  geom_quantile(
+    method = "rqss",
+    alpha = 0.4,
+    formula = y ~ qss(x, lambda = 1),
+    size = 1,
+    colour = "black",
+    aes(linetype = as.factor(..quantile..)),
+    quantiles = c(0.5, 0.8)
+  ) +
+  facet_wrap(vars(Direction), nrow = 2) +
+  labs(
+    x = "Date",
+    y = "Distance (km)",
+    title = NULL,
+    colour = "Freq (MHz)",
+    linetype = "Quantile"
+  ) +
+  theme(legend.position = "bottom") +
+  ylim(0, 22000) +
+  geom_vline(
+    xintercept = notes_for_graph$date,
+    linetype = "solid",
+    alpha = 0.3,
+    size = 1,
+    colour = "black"
+  ) +
+  geom_text(
+    data = notes_for_graph,
+    aes(x = date,
+        y = 22000,
+        label = antenna),
+    hjust = 0,
+    colour = "black"
+  ) +
+  geom_text(
+    data = notes_for_graph,
+    aes(x = date,
+        y = 21000,
+        label = orientation),
+    hjust = 0,
+    colour = "black"
+  ) +
+  guides(colour = guide_legend(override.aes = list(size = 7))) +
+  scale_x_datetime(breaks = seq(from = min_time,
+                                           to   = max_time,
+                                           by   = "1 day"),
+                   date_labels = "%d/%m")
+```
+
+
