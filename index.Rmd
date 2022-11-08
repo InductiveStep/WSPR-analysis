@@ -1,6 +1,6 @@
 ---
 title: "Querying the WsprDaemon Timescale Database using R and SQL"
-author: "Andi Fugard M0INF (almost@gmail.com, @[inductivestep](https://twitter.com/InductiveStep))"
+author: "Andi Fugard M0INF ([contact me](https://www.andifugard.info/contact/))"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
   html_document:

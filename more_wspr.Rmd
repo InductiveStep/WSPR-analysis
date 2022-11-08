@@ -187,4 +187,3 @@ joined_dat %>%
                    date_labels = "%d/%m")
 ```
 
-
